@@ -1,10 +1,9 @@
-import { create } from 'zustand';
+import { create } from "zustand";
 
 const useAuthStore = create((set) => ({
-  role: null,
-  setRole: (role) => set({ role }),
-  clearRole: () => set({ role: null }),
+  user: null,
+  setUser: (user) => set({ user }),
+  logout: () => set({ user: null }),
 }));
 
 export default useAuthStore;
-

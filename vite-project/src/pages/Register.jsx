@@ -1,132 +1,117 @@
-import React, { useState } from 'react';
-import { supabase } from '../supabaseClient';
-import { useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
+import useAuthStore from "../store/useAuthStore";
 
 const Register = () => {
-  const [formData, setFormData] = useState({
-    email: '',
-    password: '',
-    role: 'user', // default role
+  const [form, setForm] = useState({
+    full_name: "",
+    email: "",
+    password: "",
+    role: "user",
   });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
+  const setUser = useAuthStore((state) => state.setUser);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleRegister = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    setError("");
 
-    const { email, password, role } = formData;
+    const { full_name, email, password, role } = form;
 
-    try {
-      // 1. Sign up the user
-      const { data, error: signUpError } = await supabase.auth.signUp({ email, password });
-
-      if (signUpError) throw signUpError;
-
-      const user = data?.user;
-      if (!user) throw new Error('Sign up succeeded but user is missing.');
-
-      // 2. Insert profile with the user's UUID from auth.users
-      const { error: profileError } = await supabase.from('profiles').insert([
-        {
-          id: user.id, // <-- UUID from auth.users
-          email,
-          role,
-        },
-      ]);
-
-      if (profileError) throw profileError;
-
-      // 3. Navigate to login or dashboard
-      navigate('/login');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    if (!full_name || !email || !password || !role) {
+      setError("Please fill in all fields.");
+      return;
     }
+
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    const user = authData.user;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .upsert([{ id: user.id, full_name, email, role }], { onConflict: "id" });
+
+    if (profileError) {
+      setError("❌ Failed to create profile: " + profileError.message);
+      return;
+    }
+
+    setUser({ id: user.id, full_name, email, role });
+    navigate("/dashboard");
   };
 
   return (
-    <div className="max-w-md mx-auto p-6 bg-white rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4 text-center">Create Account</h2>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-200">
+      <div className="w-full max-w-md p-8 bg-white rounded-xl shadow-lg">
+        <h2 className="text-3xl font-bold text-center text-blue-700 mb-6">
+          Create Account
+        </h2>
 
-      {error && <p className="text-red-600 mb-4 text-center">{error}</p>}
+        {error && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
-      <form onSubmit={handleRegister} className="space-y-4">
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-            Email
-          </label>
+        <form onSubmit={handleSubmit} className="space-y-4">
           <input
-            type="email"
+            name="full_name"
+            type="text"
+            placeholder="Full Name"
+            value={form.full_name}
+            onChange={handleChange}
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+
+          <input
             name="email"
-            value={formData.email}
+            type="email"
+            placeholder="Email"
+            value={form.email}
             onChange={handleChange}
-            className="w-full border px-3 py-2 rounded-md"
-            required
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-        </div>
 
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-            Password
-          </label>
           <input
-            type="password"
             name="password"
-            value={formData.password}
+            type="password"
+            placeholder="Password"
+            value={form.password}
             onChange={handleChange}
-            className="w-full border px-3 py-2 rounded-md"
-            required
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-        </div>
 
-        <div>
-          <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">
-            Role
-          </label>
           <select
             name="role"
-            value={formData.role}
+            value={form.role}
             onChange={handleChange}
-            className="w-full border px-3 py-2 rounded-md"
-            required
+            className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="user">User</option>
             <option value="business">Business</option>
             <option value="admin">Admin</option>
           </select>
-        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className={`w-full py-2 bg-green-600 text-white rounded-md font-medium transition-colors ${
-            loading ? 'opacity-60 cursor-not-allowed' : 'hover:bg-green-700'
-          }`}
-        >
-          {loading ? 'Registering...' : 'Register'}
-        </button>
-      </form>
-
-      <div className="mt-4 text-center text-sm text-gray-600">
-        Already have an account?{' '}
-        <button
-          onClick={() => navigate('/login')}
-          className="text-blue-600 hover:text-blue-800 font-medium"
-        >
-          Sign in
-        </button>
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg transition"
+          >
+            Register
+          </button>
+        </form>
       </div>
     </div>
   );
 };
 
 export default Register;
-
